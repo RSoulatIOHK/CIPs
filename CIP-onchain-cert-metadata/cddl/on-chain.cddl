@@ -1,0 +1,25 @@
+transaction_metadata = {
+  "1304": on-chain_metadata
+}
+
+on-chain_metadata = {
+      "subject": tstr .size (1..64)
+    , "rootHash": tstr .regexp "[0-9a-fA-F]{64}" ; hash of the off-chain metadata pointed by the links in metadata
+    , "metadata": [+URL]
+    , "schemaVersion": uint
+    , "type": certify / audit
+}
+
+certify = {
+      "action": "CERTIFY" 
+    , "certificationLevel": 1 / 2 / 3 
+    , "certificateIssuer": tstr
+}
+
+audit = {
+      "action": "AUDIT" 
+    , "certificationLevel": 0 
+    , "certificateIssuer": tstr
+}
+
+URL = tstr ; .regexp ""

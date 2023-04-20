@@ -1,0 +1,50 @@
+off-chain_metadata = {
+      "subject": tstr .size (1..64)
+    , "schemaVersion": uint
+    , "certificationLevel": 0 / 1 / 2 / 3
+    , "certificateIssuer": certificateIssuerType
+    , "report": reportType
+    , "summary": tstr
+    , "disclaimer": tstr
+    , scripts: [+scriptType]
+}
+
+certificateIssuerType = {
+      "name": tstr
+    , "logo": URL
+    , "social": socialType
+}
+
+socialType = {
+      "contact": email 
+    , "twitter": twitterHandle
+    , "github": githubRepo
+    , "website": URL
+}
+
+reportType = {
+      "reportURLs": [+URL]
+    , "reportHash": tstr .regexp "[0-9a-fA-F]{64}"
+}
+
+scriptType = {
+      "smartContractInfo": smartContractInfoType
+    , "scriptHash": tstr .regexp "[0-9a-fA-F]{56}"
+    , "contractAddress": cardanoAddress
+}
+
+smartContractInfoType = {
+      "era": tstr
+    , "compiler": tstr
+    , "compilerVersion": tstr
+    , "optimizer": tstr
+    , "optimizerVersion": tstr
+    , "progLang": tstr
+    , "repository": URL
+}
+
+URL = tstr ; .regexp "URL regexp"
+twitterHandle = tstr .size(1..15)
+githubRepo = tstr ; .regexp "githubRepo"
+email = tstr ; .regexp "email address"
+cardanoAddress = tstr .regexp "addr1[0-9a-z]{53}" 

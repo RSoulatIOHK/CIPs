@@ -390,7 +390,6 @@ The off-chain metadata should follow the following schema and should then be ref
     "logo": "https://www.example.com/media/logo.svg",
     "social": {
         "contact": "contact@example.com",
-        "link": "https://example.com",
         "twitter": "twiterHandle",
         "github": "githubHandle",
         "website": "https://www.example.com"
