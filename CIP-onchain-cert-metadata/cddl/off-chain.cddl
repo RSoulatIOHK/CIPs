@@ -11,14 +11,14 @@ off-chain_metadata = {
 
 certificateIssuerType = {
       "name": tstr
-    , "logo": URL
+    , * "logo": URL
     , "social": socialType
 }
 
 socialType = {
       "contact": email 
-    , "twitter": twitterHandle
-    , "github": githubRepo
+    , * "twitter": twitterHandle
+    , * "github": githubRepo
     , "website": URL
 }
 
@@ -28,19 +28,19 @@ reportType = {
 }
 
 scriptType = {
-      "smartContractInfo": smartContractInfoType
+      * "smartContractInfo": smartContractInfoType
     , "scriptHash": tstr .regexp "[0-9a-fA-F]{56}"
-    , "contractAddress": cardanoAddress
+    , * "contractAddress": cardanoAddress
 }
 
 smartContractInfoType = {
-      "era": tstr
-    , "compiler": tstr
-    , "compilerVersion": tstr
-    , "optimizer": tstr
-    , "optimizerVersion": tstr
-    , "progLang": tstr
-    , "repository": URL
+      * "era": tstr
+    , * "compiler": tstr
+    , * "compilerVersion": tstr
+    , * "optimizer": tstr
+    , * "optimizerVersion": tstr
+    , * "progLang": tstr
+    , * "repository": URL
 }
 
 URL = tstr ; .regexp "URL regexp"
