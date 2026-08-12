@@ -42,7 +42,7 @@ mkdir -p CIP-XXXX/examples && cat > CIP-XXXX/examples/assurance-formal-proof.jso
     "license": "CC-BY-4.0"
   },
   "blueprint": {
-    "uri": "https://github.com/example-org/escrow/blob/v1.2.0/plutus.json",
+    "uri": "https://raw.githubusercontent.com/example-org/escrow/v1.2.0/plutus.json",
     "hash": {
       "alg": "sha256",
       "digest": "3f8a1c2b9d4e5f60718293a4b5c6d7e8f9012a3b4c5d6e7f8091a2b3c4d5e6f7"
@@ -75,7 +75,7 @@ mkdir -p CIP-XXXX/examples && cat > CIP-XXXX/examples/assurance-formal-proof.jso
         "text": "For every reachable state of the escrow, either the buyer or the seller can construct a transaction that spends the locked UTxO.",
         "formal": {
           "language": "ual",
-          "uri": "https://github.com/example-org/escrow/blob/v1.2.0/verification/no-locked-funds.ual"
+          "uri": "https://raw.githubusercontent.com/example-org/escrow/v1.2.0/verification/no-locked-funds.ual"
         }
       },
       "assumptions": [
@@ -116,7 +116,7 @@ mkdir -p CIP-XXXX/examples && cat > CIP-XXXX/examples/assurance-formal-proof.jso
         "text": "Before the deadline, only a transaction signed by the buyer can spend the escrow UTxO; after the deadline, only a transaction signed by the seller can.",
         "formal": {
           "language": "ual",
-          "uri": "https://github.com/example-org/escrow/blob/v1.2.0/verification/redeem-authorized.ual"
+          "uri": "https://raw.githubusercontent.com/example-org/escrow/v1.2.0/verification/redeem-authorized.ual"
         }
       },
       "assumptions": [
@@ -197,7 +197,7 @@ cat > CIP-XXXX/examples/assurance-property-test.json <<'JSONEOF'
     "created": "2026-08-11"
   },
   "blueprint": {
-    "uri": "https://github.com/aiken-lang/aiken/blob/main/examples/hello_world/plutus.json"
+    "uri": "https://raw.githubusercontent.com/aiken-lang/aiken/main/examples/hello_world/plutus.json"
   },
   "tools": {
     "aiken": {
@@ -320,7 +320,8 @@ mkdir -p CIP-XXXX/schemas && cat > CIP-XXXX/schemas/assurance.json <<'JSONEOF'
     ],
     "properties": {
         "$schema": {
-            "type": "string"
+            "type": "string",
+            "const": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json"
         },
         "preamble": {
             "$ref": "#/$defs/preamble"
@@ -330,12 +331,18 @@ mkdir -p CIP-XXXX/schemas && cat > CIP-XXXX/schemas/assurance.json <<'JSONEOF'
         },
         "languages": {
             "type": "object",
+            "propertyNames": {
+                "pattern": "^[A-Za-z0-9_-]+$"
+            },
             "additionalProperties": {
                 "$ref": "#/$defs/registryEntry"
             }
         },
         "tools": {
             "type": "object",
+            "propertyNames": {
+                "pattern": "^[A-Za-z0-9_-]+$"
+            },
             "additionalProperties": {
                 "$ref": "#/$defs/registryEntry"
             }
@@ -344,7 +351,8 @@ mkdir -p CIP-XXXX/schemas && cat > CIP-XXXX/schemas/assurance.json <<'JSONEOF'
             "type": "array",
             "items": {
                 "$ref": "#/$defs/property"
-            }
+            },
+            "minItems": 1
         }
     },
     "$defs": {
@@ -541,7 +549,8 @@ mkdir -p CIP-XXXX/schemas && cat > CIP-XXXX/schemas/assurance.json <<'JSONEOF'
                 },
                 "scriptHash": {
                     "type": "string",
-                    "pattern": "^[0-9a-f]{56}$"
+                    "pattern": "^[0-9a-f]{56}$",
+                    "description": "Blake2b-224 hash digest of the script the verification ran against; for parameterized validators, the hash of the unapplied template."
                 },
                 "artifact": {
                     "$ref": "#/$defs/artifact"
@@ -592,6 +601,7 @@ mkdir -p CIP-XXXX/schemas && cat > CIP-XXXX/schemas/assurance.json <<'JSONEOF'
         },
         "digest": {
             "type": "object",
+            "description": "A content digest: hash algorithm plus lowercase hex-encoded digest value.",
             "required": [
                 "alg",
                 "digest"
@@ -602,13 +612,13 @@ mkdir -p CIP-XXXX/schemas && cat > CIP-XXXX/schemas/assurance.json <<'JSONEOF'
                 },
                 "digest": {
                     "type": "string",
-                    "pattern": "^[0-9a-f]+$"
+                    "pattern": "^([0-9a-f]{2})+$"
                 }
             }
         },
         "date": {
             "type": "string",
-            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
         }
     }
 }
@@ -795,7 +805,9 @@ The value of this field MUST be the URI of the meta-schema this document complie
 https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json
 ```
 
-Any breaking change to this specification MUST be published under a new URI. Additions of OPTIONAL fields MAY occur under the same URI.
+The meta-schema pins this value with a `const`: a document claiming compliance with this version of the format carries exactly this URI.
+
+Any breaking change to this specification MUST be published under a new URI. Additions of OPTIONAL fields MAY occur under the same URI. To make such additions possible, objects in an assurance document are deliberately open: consumers MUST ignore fields they do not recognize.
 
 #### preamble
 
@@ -937,7 +949,7 @@ The `method` field is an **open** enumeration. This CIP defines the meaning of f
 | `audit`         | A structured review by an auditor (see [CIP-0052](../CIP-0052))          | no              |
 | `manual-review` | An informal human review                                                 | no              |
 
-Producers MAY use other method strings. Consumers MUST accept unknown methods and treat them as opaque: display them, but attach no semantics. The three *machine-checked* methods carry stricter requirements (`tool`, `scriptHash` and `artifact` are REQUIRED) because their whole point is reproducibility.
+Producers MAY use other method strings. Consumers MUST accept unknown methods and treat them as opaque: display them, but attach no semantics. Method values are case-sensitive: `Formal-Proof` is an unknown method, not a formal proof. The three *machine-checked* methods carry stricter requirements (`tool`, `scriptHash` and `artifact` are REQUIRED) because their whole point is reproducibility.
 
 #### Outcomes
 
