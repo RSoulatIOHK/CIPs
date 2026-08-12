@@ -8,7 +8,7 @@
     "created": "2026-08-11"
   },
   "blueprint": {
-    "uri": "https://raw.githubusercontent.com/aiken-lang/aiken/main/examples/hello_world/plutus.json"
+    "uri": "https://raw.githubusercontent.com/aiken-lang/aiken/v1.1.5/examples/hello_world/plutus.json"
   },
   "tools": {
     "aiken": {

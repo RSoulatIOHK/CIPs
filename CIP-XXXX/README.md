@@ -28,7 +28,7 @@ A third party can take an assurance document, confirm that it concerns the exact
 
 The blueprint ecosystem is the natural anchor for such claims: a blueprint already carries the compiled validator, the datum and redeemer shapes, the required parameters, and a hash digest linking the validator to on-chain addresses. What is missing is a standard companion format for behavioural claims that binds to those elements.
 
-This proposal enables, building directly on the use cases CIP-0057 already lists:
+Building directly on the use cases CIP-0057 already lists, this proposal enables:
 
 - **Reproducible verification**: anyone can re-derive a validator's verdicts from the referenced artifacts, rather than trusting an assertion.
 - **Communicating guarantees**: wallets, explorers, and registries can display which properties are claimed for a validator, by whom, with what method and outcome — and whether the evidence still matches the deployed code.
@@ -48,17 +48,17 @@ An assurance document is *detached*: it is a separate document from the blueprin
 
 By convention, an assurance document authored by the contract developers is named `assurance.json` and located next to `plutus.json` at the root of the project's repository, to facilitate discoverability. Third-party documents can be published anywhere.
 
-The meta-schema for assurance documents (i.e. the schema used for validating assurance documents themselves) is given [in annexe](./schemas/assurance.json). An assurance document identifies the format version it complies with through its `$schema` field.
+The meta-schema for assurance documents (i.e. the schema used for validating assurance documents themselves) is given as an annex: [schemas/assurance.json](./schemas/assurance.json). An assurance document identifies the format version it complies with through its `$schema` field.
 
 A **producer** is any tool or person authoring assurance documents. A **consumer** is any tool interpreting them (e.g. a wallet, an explorer, a verification checker).
 
 ### Document structure
 
-The document itself is a JSON object with the following fields:
+The document itself is a JSON object with the following fields. Here and in all field tables below, a leading `?` marks a field as optional; all other fields are required.
 
 | Fields      | Description                                                        |
 | ---         | ---                                                                |
-| `$schema`   | URI identifying the assurance document format version (required)   |
+| `$schema`   | URI identifying the assurance document format version              |
 | preamble    | An object with meta-information about the assurance document       |
 | blueprint   | A reference to the blueprint the claims are about                  |
 | ?languages  | A registry of specification languages used by formal statements    |
@@ -97,7 +97,7 @@ A reference to the blueprint the claims are about.
 | uri    | A URI from which the blueprint document can be retrieved                                 |
 | ?hash  | A content digest of the blueprint document, as a [digest object](#digest-objects)        |
 
-The `hash`, when present, MUST be computed over the raw bytes of the blueprint document exactly as retrieved from `uri`. Including it is RECOMMENDED: it makes the binding tamper-evident. Consumers MUST verify it when present and MUST treat the assurance document as *not applicable* to a blueprint whose bytes do not match.
+The `hash`, when present, MUST be computed over the raw bytes of the blueprint document exactly as retrieved from `uri`. Including it is RECOMMENDED: it makes the binding tamper-evident. Consumers MUST verify it when present and MUST treat the assurance document as *not applicable* to a blueprint whose bytes do not match. When `hash` is absent, consumers SHOULD signal that the binding to the blueprint document is unverified.
 
 #### digest objects
 
@@ -110,7 +110,7 @@ Everywhere a content digest appears, it is an object:
 
 #### languages and tools
 
-Both fields are objects mapping a document-local identifier (used by `formal.language` and `evidence.tool` references) to a registry entry:
+Both fields are objects mapping a document-local identifier — a key matching `^[A-Za-z0-9_-]+$`, used by `formal.language` and `evidence.tool` references — to a registry entry:
 
 | Fields       | Description                                            |
 | ---          | ---                                                    |
@@ -123,7 +123,7 @@ This CIP deliberately does **not** restrict which specification languages or ver
 
 #### properties
 
-The essence of the assurance document: a list of claimed properties. Each property is an object:
+The essence of the assurance document: a non-empty list of claimed properties. Each property is an object:
 
 | Fields       | Description                                                                                       |
 | ---          | ---                                                                                               |
@@ -193,7 +193,7 @@ Each evidence record documents one verification act performed against the proper
 | ?artifact   | A reference to the reproducible verification artifact. REQUIRED for machine-checked methods.    |
 | ?notes      | Free-form remarks (e.g. number of test cases, proof effort)                                     |
 
-For parameterized validators, `scriptHash` is the hash of the *unapplied* validator template — the same value as the blueprint's own `hash` field for that validator.
+`scriptHash` is the on-chain script hash as defined by CIP-0057's validator `hash` field: a blake2b-224 digest of the serialised script, with language tag prefix. For parameterized validators, it is the hash of the *unapplied* validator template — the same value as the blueprint's own `hash` field for that validator.
 
 The `artifact` object has the fields:
 
@@ -236,11 +236,12 @@ The `method` conveys the strength of an outcome: a `verified` property-test and 
 
 A consumer of assurance documents:
 
-1. MUST validate the document against the meta-schema referenced by its `$schema` and reject invalid documents, including documents whose `formal.language` or `evidence.tool` references do not resolve in the corresponding registry.
-2. MUST, when `blueprint.hash` is present, compare it against the actual blueprint bytes, and treat the assurance document as not applicable on mismatch.
-3. MUST, when `scriptHash` is present on an evidence record, compare it against the resolved validator's `hash` in the blueprint, and flag the evidence as **stale** on mismatch.
-4. MUST verify an artifact's content digest before relying on the artifact's content.
-5. MUST treat unresolvable or ambiguous validator references as errors.
+1. MUST validate the document against the meta-schema referenced by its `$schema` and reject invalid documents.
+2. MUST additionally reject documents that violate the constraints the meta-schema cannot express: `formal.language` or `evidence.tool` references that do not resolve in the corresponding registry, and property `id`s that are not unique within the document.
+3. MUST, when `blueprint.hash` is present, compare it against the actual blueprint bytes, and treat the assurance document as not applicable on mismatch.
+4. MUST, when `scriptHash` is present on an evidence record, compare it against the resolved validator's `hash` in the blueprint, and flag the evidence as **stale** on mismatch. When the blueprint validator carries no `hash` (CIP-0057 makes it optional in the absence of `compiledCode`), consumers MUST treat the evidence as **unverifiable** against that validator — distinct from stale.
+5. MUST verify an artifact's content digest before relying on the artifact's content; a consumer that cannot compute the declared `alg` MUST treat the artifact as unverified rather than skip the check.
+6. MUST treat unresolvable or ambiguous validator references as errors.
 
 ## Examples
 
@@ -384,7 +385,7 @@ The following complete examples are also available as machine-readable files und
     "created": "2026-08-11"
   },
   "blueprint": {
-    "uri": "https://raw.githubusercontent.com/aiken-lang/aiken/main/examples/hello_world/plutus.json"
+    "uri": "https://raw.githubusercontent.com/aiken-lang/aiken/v1.1.5/examples/hello_world/plutus.json"
   },
   "tools": {
     "aiken": {
@@ -447,7 +448,7 @@ The mandatory natural-language `text` guarantees that every claim remains legibl
 
 ### Why no signatures in v1
 
-Evidence records name their verifier, but nothing in this version authenticates that name cryptographically. This is deliberate: the trust model of this CIP rests on *reproducibility* — anyone can fetch the artifact, check its digest, re-run the verification and compare verdicts — not on the authority of the verifier. Signing evidence records (e.g. with CIP-0008 message signing or COSE) would add real value against lazy consumers who do not re-run verifications, but it drags key management and identity questions into the format. It can be layered on in a future version, or by wrapping assurance documents in an external attestation, without changing the format defined here.
+Evidence records name their verifier, but nothing in this version authenticates that name cryptographically. This is deliberate: the trust model of this CIP rests on *reproducibility* — anyone can fetch the artifact, check its digest, re-run the verification and compare verdicts — not on the authority of the verifier. Signing evidence records (e.g. with [CIP-0008](../CIP-0008) message signing or COSE) would add real value against lazy consumers who do not re-run verifications, but it drags key management and identity questions into the format. It can be layered on in a future version, or by wrapping assurance documents in an external attestation, without changing the format defined here.
 
 ### Open methods, closed outcomes
 
@@ -456,6 +457,10 @@ New verification methods keep appearing (symbolic execution, model checking, fuz
 ### Relation to CIP-0052
 
 [CIP-0052](../CIP-0052) defines best practices for conducting audits of Cardano smart contracts. This CIP is complementary: it gives an audit performed along CIP-0052 lines a standard, machine-readable, code-bound publication format — an evidence record with `method: audit` whose artifact is the audit report itself, hash-pinned and tied to the audited script hashes.
+
+### Validators only
+
+Assurance documents annotate validators — the unit of description in CIP-0057 blueprints. Finer-grained specifications (e.g. per-function contracts within a validator) and richer blueprint descriptions are deliberately out of scope for this proposal, and are left to future work.
 
 ### Backward compatibility
 
