@@ -241,3 +241,188 @@ A consumer of assurance documents:
 3. MUST, when `scriptHash` is present on an evidence record, compare it against the resolved validator's `hash` in the blueprint, and flag the evidence as **stale** on mismatch.
 4. MUST verify an artifact's content digest before relying on the artifact's content.
 5. MUST treat unresolvable or ambiguous validator references as errors.
+
+## Examples
+
+The following complete examples are also available as machine-readable files under [examples](./examples).
+
+<details>
+  <summary>Formal verification with Blaster (formal-proof evidence, UAL formal statements, assumptions)</summary>
+
+```json
+{
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "preamble": {
+    "title": "Escrow contract — formal verification assurance",
+    "description": "Machine-checked safety properties of the escrow validator, verified with Blaster.",
+    "version": "1.0.0",
+    "authors": [
+      "Input Output — Blaster team <blaster@iohk.io>"
+    ],
+    "created": "2026-08-11",
+    "license": "CC-BY-4.0"
+  },
+  "blueprint": {
+    "uri": "https://raw.githubusercontent.com/example-org/escrow/v1.2.0/plutus.json",
+    "hash": {
+      "alg": "sha256",
+      "digest": "3f8a1c2b9d4e5f60718293a4b5c6d7e8f9012a3b4c5d6e7f8091a2b3c4d5e6f7"
+    }
+  },
+  "languages": {
+    "ual": {
+      "name": "Universal Annotation Language",
+      "version": "0.4",
+      "uri": "https://github.com/input-output-hk/ual-spec",
+      "description": "Property specification language used by Blaster."
+    }
+  },
+  "tools": {
+    "blaster": {
+      "name": "Blaster",
+      "version": "0.3.1",
+      "uri": "https://github.com/input-output-hk/blaster",
+      "description": "SMT-based formal verification tool for UPLC validators."
+    }
+  },
+  "properties": [
+    {
+      "id": "no-locked-funds",
+      "title": "Funds can always be recovered",
+      "scope": {
+        "validators": ["escrow-spend"]
+      },
+      "statement": {
+        "text": "For every reachable state of the escrow, either the buyer or the seller can construct a transaction that spends the locked UTxO.",
+        "formal": {
+          "language": "ual",
+          "uri": "https://raw.githubusercontent.com/example-org/escrow/v1.2.0/verification/no-locked-funds.ual"
+        }
+      },
+      "assumptions": [
+        {
+          "text": "The datum of the escrow UTxO conforms to the blueprint's datum schema."
+        },
+        {
+          "text": "The transaction validity interval is finite."
+        }
+      ],
+      "tags": ["safety", "liveness"],
+      "evidence": [
+        {
+          "method": "formal-proof",
+          "verifier": "Input Output — Blaster team",
+          "tool": "blaster",
+          "outcome": "verified",
+          "date": "2026-08-01",
+          "scriptHash": "7b3c9d1e5f2a8b4c6d0e9f317a5b8c2d4e6f0a1b3c5d7e9f2a4b6c8d",
+          "artifact": {
+            "uri": "https://github.com/example-org/escrow/releases/download/v1.2.0/escrow-proofs.tar.gz",
+            "hash": {
+              "alg": "sha256",
+              "digest": "ab31c7e2f4d5968a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6"
+            },
+            "mediaType": "application/gzip"
+          }
+        }
+      ]
+    },
+    {
+      "id": "redeem-authorized",
+      "title": "Only authorized parties can move funds",
+      "scope": {
+        "validators": ["escrow-spend"]
+      },
+      "statement": {
+        "text": "Before the deadline, only a transaction signed by the buyer can spend the escrow UTxO; after the deadline, only a transaction signed by the seller can.",
+        "formal": {
+          "language": "ual",
+          "uri": "https://raw.githubusercontent.com/example-org/escrow/v1.2.0/verification/redeem-authorized.ual"
+        }
+      },
+      "assumptions": [
+        {
+          "text": "The datum of the escrow UTxO conforms to the blueprint's datum schema."
+        }
+      ],
+      "tags": ["safety", "authorization"],
+      "evidence": [
+        {
+          "method": "formal-proof",
+          "verifier": "Input Output — Blaster team",
+          "tool": "blaster",
+          "outcome": "verified",
+          "date": "2026-08-01",
+          "scriptHash": "7b3c9d1e5f2a8b4c6d0e9f317a5b8c2d4e6f0a1b3c5d7e9f2a4b6c8d",
+          "artifact": {
+            "uri": "https://github.com/example-org/escrow/releases/download/v1.2.0/escrow-proofs.tar.gz",
+            "hash": {
+              "alg": "sha256",
+              "digest": "ab31c7e2f4d5968a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6"
+            },
+            "mediaType": "application/gzip"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+</details>
+
+<details>
+  <summary>Property testing with Aiken (minimal document: no languages registry, natural-language statement only)</summary>
+
+```json
+{
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "preamble": {
+    "title": "hello_world — property-test assurance",
+    "authors": [
+      "Ada Lovelace <ada@example.com>"
+    ],
+    "created": "2026-08-11"
+  },
+  "blueprint": {
+    "uri": "https://raw.githubusercontent.com/aiken-lang/aiken/main/examples/hello_world/plutus.json"
+  },
+  "tools": {
+    "aiken": {
+      "name": "Aiken",
+      "version": "1.1.5",
+      "uri": "https://aiken-lang.org"
+    }
+  },
+  "properties": [
+    {
+      "id": "requires-owner-signature",
+      "title": "Spending requires the owner's signature and the magic message",
+      "scope": {
+        "validators": ["hello_world"]
+      },
+      "statement": {
+        "text": "The validator succeeds only if the transaction is signed by the public key hash stored in the datum's 'owner' field and the redeemer's 'msg' field is exactly the UTF-8 bytes of 'Hello, World!'."
+      },
+      "evidence": [
+        {
+          "method": "property-test",
+          "verifier": "Ada Lovelace",
+          "tool": "aiken",
+          "outcome": "verified",
+          "date": "2026-07-15",
+          "scriptHash": "5e1e8fa84f2b557ddc362329413caa3fd89a1be26bfd24be05ce0a02",
+          "artifact": {
+            "uri": "https://github.com/example-org/hello-world-tests/archive/refs/tags/v1.0.tar.gz",
+            "hash": {
+              "alg": "sha256",
+              "digest": "d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70819a2b3c4d5e6"
+            }
+          },
+          "notes": "500 randomized scenarios generated with Aiken's property-testing framework; suite rejects missing signatures and wrong messages."
+        }
+      ]
+    }
+  ]
+}
+```
+</details>
