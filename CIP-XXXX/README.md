@@ -460,3 +460,22 @@ New verification methods keep appearing (symbolic execution, model checking, fuz
 ### Backward compatibility
 
 This CIP requires no change to CIP-0057. The RECOMMENDED validator `id` field is already legal under the CIP-0057 meta-schema (validator objects do not forbid additional fields), and blueprints without `id` fields remain fully usable through `title`-based references. Tools unaware of this CIP are unaffected: assurance documents are separate files they never read.
+
+## Path to Active
+
+### Acceptance Criteria
+
+- [ ] The meta-schema is published and has remained stable through community review.
+- [ ] At least one producer toolchain emits assurance documents (Blaster, planned).
+- [ ] At least one consumer tool validates assurance documents, including binding checks (blueprint hash, validator resolution, script hash comparison) and artifact digest verification.
+- [ ] At least one assurance document is published for a real-world, deployed contract.
+
+### Implementation Plan
+
+- [ ] Blaster to emit an `assurance.json` (UAL formal statements, `formal-proof` evidence records, proof artifacts) for the validators it verifies.
+- [ ] Develop a standalone checker that performs the consumer obligations of this specification: meta-schema validation, binding checks, and artifact digest verification.
+- [ ] Engage explorer, registry and wallet developers on surfacing assurance claims to end users.
+
+## Copyright
+
+This CIP is licensed under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
