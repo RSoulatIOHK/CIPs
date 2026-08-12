@@ -426,3 +426,37 @@ The following complete examples are also available as machine-readable files und
 }
 ```
 </details>
+
+## Rationale: how does this CIP achieve its goals?
+
+### Why a detached document rather than a blueprint extension
+
+An earlier draft of this proposal extended CIP-0057 blueprints in place, through an additional `$vocabulary` entry and new keywords inside `plutus.json`. The detached design was chosen instead, for three reasons:
+
+1. **Third-party publishing.** The parties best placed to make assurance claims — auditors, independent verification teams — usually do not control the contract's repository. A detached document lets them publish claims about deployed code without any cooperation from the developers, and lets several independent assurance documents about the same blueprint coexist.
+2. **Blueprints are compiler output.** `plutus.json` is typically regenerated on every build by the smart-contract framework (Aiken, OpShin, plu-ts, ...). Hand-maintained assurance data embedded in a generated file would be overwritten on each compilation, or would require every framework to learn how to preserve and merge it.
+3. **No dialect machinery needed.** An assurance document is not a JSON Schema dialect extension; it is its own document type. Identifying the format by a versioned `$schema` URI is simpler than the `$vocabulary` opt-in mechanism, and CIP-0057 remains entirely untouched.
+
+Developers who want the "blueprint carries its claims" experience simply ship an `assurance.json` next to their `plutus.json`.
+
+### Why the specification language is free
+
+There is today no consensus — on Cardano or elsewhere — on a single property language for smart contracts, and mandating one would gate adoption of this CIP on the outcome of that debate. Instead, the format standardizes the *envelope*: what is claimed (in mandatory natural language), by whom, about which exact code, with what outcome, and where the evidence lives. Formal statements are optional and declare their language through the `languages` registry, so a Blaster user can reference Universal Annotation Language statements while an Aiken user references executable property tests, without either being privileged by the format. If the ecosystem later converges on a standard property language, it slots into the registry like any other.
+
+The mandatory natural-language `text` guarantees that every claim remains legible to every reader — including the users whose funds are at stake — regardless of which formal languages and tools they know.
+
+### Why no signatures in v1
+
+Evidence records name their verifier, but nothing in this version authenticates that name cryptographically. This is deliberate: the trust model of this CIP rests on *reproducibility* — anyone can fetch the artifact, check its digest, re-run the verification and compare verdicts — not on the authority of the verifier. Signing evidence records (e.g. with CIP-0008 message signing or COSE) would add real value against lazy consumers who do not re-run verifications, but it drags key management and identity questions into the format. It can be layered on in a future version, or by wrapping assurance documents in an external attestation, without changing the format defined here.
+
+### Open methods, closed outcomes
+
+New verification methods keep appearing (symbolic execution, model checking, fuzzing variants, ...), so `method` is an open enumeration: unknown values are legal and treated as opaque by consumers. Outcomes, by contrast, are what consumers compare and display at a glance, so `outcome` is a small closed enumeration with fixed semantics. The strength of an outcome is conveyed by its method — which is why consumers are told to always present the two together.
+
+### Relation to CIP-0052
+
+[CIP-0052](../CIP-0052) defines best practices for conducting audits of Cardano smart contracts. This CIP is complementary: it gives an audit performed along CIP-0052 lines a standard, machine-readable, code-bound publication format — an evidence record with `method: audit` whose artifact is the audit report itself, hash-pinned and tied to the audited script hashes.
+
+### Backward compatibility
+
+This CIP requires no change to CIP-0057. The RECOMMENDED validator `id` field is already legal under the CIP-0057 meta-schema (validator objects do not forbid additional fields), and blueprints without `id` fields remain fully usable through `title`-based references. Tools unaware of this CIP are unaffected: assurance documents are separate files they never read.
