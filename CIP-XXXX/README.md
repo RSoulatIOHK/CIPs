@@ -63,6 +63,7 @@ The document itself is a JSON object with the following fields. Here and in all 
 | blueprint   | A reference to the blueprint the claims are about                  |
 | ?languages  | A registry of specification languages used by formal statements    |
 | ?tools      | A registry of verification tools referenced by evidence records    |
+| ?formalFragments | Reusable formal-language definitions that formal statements are written against |
 | properties  | The list of claimed properties                                     |
 
 #### `$schema`
@@ -121,6 +122,8 @@ Both fields are objects mapping a document-local identifier — a key matching `
 
 This CIP deliberately does **not** restrict which specification languages or verification tools can be referenced; see the Rationale. A reference to a key absent from the corresponding registry makes the document invalid; consumers MUST reject such documents.
 
+Registry entries are open objects, like every object in an assurance document. The four fields above identify a language or a tool, but they cannot on their own describe the *environment* a formal statement is checked in: a language embedded in a proof assistant, for instance, elaborates its statements against particular versions of particular libraries, and its own `version` pins none of them. A language or tool specification MAY therefore define additional fields on its registry entry — a list of library dependencies and their versions being the obvious case — and consumers that do not recognize them MUST ignore them, as they must for any unrecognized field. This CIP does not standardize such fields: what a checking environment consists of is exactly the language-specific question this format declines to answer.
+
 #### properties
 
 The essence of the assurance document: a non-empty list of claimed properties. Each property is an object:
@@ -151,8 +154,32 @@ The natural-language `text` is deliberately mandatory: every reader of an assura
 | language | A key of the document's `languages` registry                                       |
 | ?source  | The formal statement itself, inline                                                |
 | ?uri     | A URI from which the formal statement can be retrieved                             |
+| ?uses    | A list of [formal fragment](#formalfragments) ids the statement is written against  |
 
 At least one of `source` or `uri` MUST be present.
+
+A formal statement is a claim about the validators named in the enclosing property's `scope`, so the two have to be connected: nothing is gained by proving a theorem that never mentions the code. This CIP does not reserve an identifier for a validator — doing so would privilege one language's naming inside a format that deliberately privileges none — but it does require the connection to be specified somewhere. A `formal.language` specification MUST define how the validators named in `scope.validators` are denoted inside a formal statement written in that language, and SHOULD define the language's notion of a validator accepting or rejecting a transaction, since that is what most claims are about. A formal statement that does not refer to the scoped validators constrains nothing about the compiled code, however rigorous its proof; no consumer can detect that, which is why the obligation falls on the language.
+
+#### formalFragments
+
+Formal statements are frequently not self-contained. A property's `formal.source` may be stated in terms of definitions — a model of the contract's state, a helper predicate, a family of concrete scenarios — that several properties share, and that a producer extracting statements from source annotations has extracted from the same source. The OPTIONAL top-level `formalFragments` field carries those definitions once, as a list of objects:
+
+| Fields   | Description                                                                     |
+| ---      | ---                                                                             |
+| id       | An identifier unique within the document, matching `^[A-Za-z0-9_.-]+$`          |
+| language | A key of the document's `languages` registry                                    |
+| ?imports | A list of ids of other fragments this fragment's `source` depends on            |
+| source   | The fragment itself, inline                                                     |
+
+A statement's `formal.uses` names the fragments it is written against. `imports` supplies the transitive closure, so `uses` need not spell out what the fragments it names already depend on.
+
+The `id` pattern is deliberately wider than the property `id` pattern: fragment ids are typically the names of modules in the producer's source language, such as `My.Contract.Types`, so `.` is permitted.
+
+`imports` is what makes the collection ordered rather than a bag: the order of the `formalFragments` array is not significant, and `imports` is. The edges MUST be acyclic, and both `imports` and `uses` MUST resolve within the document; see [Consumer obligations](#consumer-obligations).
+
+**Fragments are opaque.** A fragment's `source` is text in the language named by its `language` field, exactly as `formal.source` is; this CIP attaches no meaning to it. A consumer that does not know that language MUST ignore the document's fragments rather than reject the document — an unrecognized language is the normal case, not an error. A consumer that does know the language, and that is asked to check a property, MUST make available to it every fragment reachable from that property's `uses` through `imports`.
+
+**What `imports` does not express.** `imports` names fragments *within this document*. A fragment will usually also depend on things outside it — the standard library of the declared language, a library of ledger definitions — and this version of the format does not express those dependencies. What a fragment may assume to already be in scope is part of the declared language's own definition; [languages and tools](#languages-and-tools) is where a language can declare the environment it elaborates in.
 
 #### Referencing validators
 
@@ -163,6 +190,8 @@ A validator reference is a string that resolves against the blueprint's `validat
 3. Otherwise (zero or several matches), the reference is unresolvable and consumers MUST treat it as an error.
 
 To make references robust, this CIP RECOMMENDS that blueprint producers include in each validator entry an OPTIONAL field `id`: a string unique within the blueprint, stable across renames of the validator's `title`. The CIP-0057 meta-schema permits additional fields on validator objects, so blueprints carrying `id` fields remain valid CIP-0057 blueprints, and tools unaware of this CIP ignore them.
+
+For a producer that generates assurance documents from annotations in the contract's own source, `id` is more than a recommendation in practice: the id is what binds an annotation to the validator it annotates, and a `title` is prose the author is free to rewrite. Such a producer emits `id` for every validator it describes, and its references never fall through to rule 2.
 
 ```json
 {
@@ -237,11 +266,24 @@ The `method` conveys the strength of an outcome: a `verified` property-test and 
 A consumer of assurance documents:
 
 1. MUST validate the document against the meta-schema referenced by its `$schema` and reject invalid documents.
-2. MUST additionally reject documents that violate the constraints the meta-schema cannot express: `formal.language` or `evidence.tool` references that do not resolve in the corresponding registry, and property `id`s that are not unique within the document.
+2. MUST additionally reject documents that violate the constraints the meta-schema cannot express: `formal.language` or `evidence.tool` references that do not resolve in the corresponding registry; property `id`s that are not unique within the document; `formal.uses` or `formalFragments.imports` entries that do not resolve to a fragment of the same document; fragment `id`s that are not unique; and `imports` edges that contain a cycle. None of these checks requires knowing any formal language, so they apply to every consumer; the four concerning fragments are vacuous for a document that carries neither `formalFragments` nor `uses`, which is why they can be added without a new `$schema` URI.
 3. MUST, when `blueprint.hash` is present, compare it against the actual blueprint bytes, and treat the assurance document as not applicable on mismatch.
 4. MUST, when `scriptHash` is present on an evidence record, compare it against the resolved validator's `hash` in the blueprint, and flag the evidence as **stale** on mismatch. When the blueprint validator carries no `hash` (CIP-0057 makes it optional in the absence of `compiledCode`), consumers MUST treat the evidence as **unverifiable** against that validator — distinct from stale.
 5. MUST verify an artifact's content digest before relying on the artifact's content; a consumer that cannot compute the declared `alg` MUST treat the artifact as unverified rather than skip the check.
 6. MUST treat unresolvable or ambiguous validator references as errors.
+
+#### Producers
+
+Most of this specification constrains consumers, because a consumer is what a reader's trust passes through. Producers carry four obligations of their own, and they matter most for the case this format is expected to become ordinary: a document generated by the contract's own toolchain, from annotations in the contract's source, on every build.
+
+A producer of assurance documents:
+
+1. SHOULD produce byte-identical output for a given source tree, so that regenerating a document produces no spurious diff. A document that changes on every build is one no reviewer can read a diff of, and one no repository can usefully track.
+2. SHOULD take `preamble.authors` and `preamble.created` from project metadata rather than from the invoking user and the wall clock, so that rebuilding an old commit reproduces that commit's document. `created` dates the document's content, not the file.
+3. MUST compute `blueprint.hash` over the blueprint document as finally written. For a producer emitting both documents this constrains build order: write `plutus.json` first, hash the bytes as they now exist on disk, then write the assurance document. A digest taken over an intermediate representation of the blueprint is not a digest of the blueprint, and a consumer comparing it against the published file will find it does not match.
+4. MUST NOT scope a property to a validator the property is not about. `scope` is what makes a claim checkable against particular compiled code, so a property attached to a validator it does not constrain is a false claim about that validator rather than an imprecise one — and no consumer can detect it. A producer holding a claim that fits no validator MUST omit the claim rather than attach it to an arbitrary one; see [Validators only](#validators-only).
+
+A producer running at build time, before any verification has been attempted, is expected to emit properties with **no** `evidence` records. That is not an incomplete document: it is the "stated, unverified claim" case of the [Motivation](#motivation-why-is-this-cip-necessary), and a later verification run is what adds the evidence.
 
 ## Examples
 
@@ -428,6 +470,72 @@ The following complete examples are also available as machine-readable files und
 ```
 </details>
 
+<details>
+  <summary>Compiler-generated from source annotations (formalFragments, no evidence)</summary>
+
+Emitted by a Plinth toolchain from annotations in the contract's own source, during the same build that writes `plutus.json`. Its single property carries no `evidence` record, and that is the point: the document is produced *before* any verification has been attempted, so every property in it is a stated, unverified claim — a specification target for a later run to fill in.
+
+The definitions the formal statement is written against travel in `formalFragments`, keyed by the surface module they were extracted from, and the statement names the fragment through `formal.uses`. The `blueprint.uri` is relative because the two documents are written side by side at the project root.
+
+```json
+{
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "preamble": {
+    "title": "Ticket contract — UAL assurance",
+    "description": "Generated from UAL annotations.",
+    "version": "1.0.0",
+    "authors": [
+      "Example Author <a@example.com>"
+    ],
+    "created": "2026-08-24",
+    "license": "CC-BY-4.0"
+  },
+  "blueprint": {
+    "uri": "plutus.json",
+    "hash": {
+      "alg": "sha256",
+      "digest": "6c1f0b7d3a94e582f0d6a1b2c3e4f50918273a4b5c6d7e8f90a1b2c3d4e5f607"
+    }
+  },
+  "languages": {
+    "ual": {
+      "name": "Universal Annotation Language",
+      "description": "Property specification language used by Blaster.",
+      "version": "0.4",
+      "uri": "https://github.com/input-output-hk/ual-spec"
+    }
+  },
+  "formalFragments": [
+    {
+      "id": "Ual.Fixture",
+      "language": "ual",
+      "source": "def ticketOk (t : Ticket) : Prop := t.value > 0"
+    }
+  ],
+  "properties": [
+    {
+      "id": "ticket_ok",
+      "scope": {
+        "validators": [
+          "ticketSpend"
+        ]
+      },
+      "statement": {
+        "text": "A ticket with a positive value is accepted.",
+        "formal": {
+          "language": "ual",
+          "uses": [
+            "Ual.Fixture"
+          ],
+          "source": "∀ (t : Ticket), ticketOk t"
+        }
+      }
+    }
+  ]
+}
+```
+</details>
+
 ## Rationale: how does this CIP achieve its goals?
 
 ### Why a detached document rather than a blueprint extension
@@ -435,7 +543,7 @@ The following complete examples are also available as machine-readable files und
 An earlier draft of this proposal extended CIP-0057 blueprints in place, through an additional `$vocabulary` entry and new keywords inside `plutus.json`. The detached design was chosen instead, for three reasons:
 
 1. **Third-party publishing.** The parties best placed to make assurance claims — auditors, independent verification teams — usually do not control the contract's repository. A detached document lets them publish claims about deployed code without any cooperation from the developers, and lets several independent assurance documents about the same blueprint coexist.
-2. **Blueprints are compiler output.** `plutus.json` is typically regenerated on every build by the smart-contract framework (Aiken, OpShin, plu-ts, ...). Hand-maintained assurance data embedded in a generated file would be overwritten on each compilation, or would require every framework to learn how to preserve and merge it.
+2. **Hand-maintained data does not survive a generated file.** `plutus.json` is regenerated on every build by the smart-contract framework (Aiken, OpShin, plu-ts, ...). Assurance data maintained by hand inside it would be overwritten on each compilation, or would require every framework to learn how to preserve and merge it. This argument does *not* apply to assurance content derived from source annotations, which a toolchain can regenerate as freely as the blueprint itself — see [Producers](#producers). It is the first and third reasons that make detachment right in both cases: a generated assurance document still has to be publishable by parties who cannot regenerate the blueprint, and still gains nothing from `$vocabulary` machinery.
 3. **No dialect machinery needed.** An assurance document is not a JSON Schema dialect extension; it is its own document type. Identifying the format by a versioned `$schema` URI is simpler than the `$vocabulary` opt-in mechanism, and CIP-0057 remains entirely untouched.
 
 Developers who want the "blueprint carries its claims" experience simply ship an `assurance.json` next to their `plutus.json`.
@@ -445,6 +553,8 @@ Developers who want the "blueprint carries its claims" experience simply ship an
 There is today no consensus — on Cardano or elsewhere — on a single property language for smart contracts, and mandating one would gate adoption of this CIP on the outcome of that debate. Instead, the format standardizes the *envelope*: what is claimed (in mandatory natural language), by whom, about which exact code, with what outcome, and where the evidence lives. Formal statements are optional and declare their language through the `languages` registry, so a Blaster user can reference Universal Annotation Language statements while an Aiken user references executable property tests, without either being privileged by the format. If the ecosystem later converges on a standard property language, it slots into the registry like any other.
 
 The mandatory natural-language `text` guarantees that every claim remains legible to every reader — including the users whose funds are at stake — regardless of which formal languages and tools they know.
+
+That freedom has a consequence the format absorbs rather than resolves. A `formal.language` implementation MAY require additional fields in the *blueprint* itself — an ordered list of the terms a program is applied to together with their encoding schemes, for instance, or an execution budget — because a formal statement about a compiled program has to say what that program is applied to, and CIP-0057 splits `parameters`, `datum` and `redeemer` without giving the application order. Such fields are legal CIP-0057 additions: validator objects do not forbid additional fields, the same argument this CIP makes for `id`. They are specified by the language that needs them, not by this CIP, and a blueprint carrying them remains a valid CIP-0057 blueprint that tools unaware of the language ignore.
 
 ### Why no signatures in v1
 
@@ -460,7 +570,11 @@ New verification methods keep appearing (symbolic execution, model checking, fuz
 
 ### Validators only
 
-Assurance documents annotate validators — the unit of description in CIP-0057 blueprints. Finer-grained specifications (e.g. per-function contracts within a validator) and richer blueprint descriptions are deliberately out of scope for this proposal, and are left to future work.
+Assurance documents annotate validators — the unit of description in CIP-0057 blueprints. "Validator" is meant mechanically rather than by ledger role: a CIP-0057 `validators` entry is in substance a *named compiled program with argument schemas*, and nothing in this CIP requires that the ledger invoke it directly. A producer MAY therefore emit a `validators` entry for any named compiled program it can describe that way — a helper function compiled to a UPLC program of its own, for instance — and properties about that program are then scoped exactly like properties about a spending validator. That is what the format already describes; reading `validators` more narrowly would exclude claims it can carry perfectly well.
+
+Finer-grained specifications *within* a validator — per-function contracts over definitions that never become a compiled program of their own — and richer blueprint descriptions remain deliberately out of scope, and are left to future work.
+
+Making `scope` mandatory has a cost worth stating plainly. `scope.validators` is REQUIRED and non-empty, so every property in this version is a claim about at least one named program. A claim about a contract's *pure model* — an arithmetic lemma about a vesting schedule, say, which mentions no compiled code at all — has no home here, and a producer MUST NOT give it one by scoping it to a validator it is not about ([Producers](#producers)). Admitting such claims means either permitting an empty `scope.validators` or introducing a second kind of scope; both change the meaning of a REQUIRED field rather than add an OPTIONAL one, so both belong to a future version under a new `$schema` URI. Until then, a project with properties of that kind publishes the validator-scoped ones here and keeps the rest where they already live.
 
 ### Backward compatibility
 

@@ -38,6 +38,12 @@
                 "$ref": "#/$defs/registryEntry"
             }
         },
+        "formalFragments": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/formalFragment"
+            }
+        },
         "properties": {
             "type": "array",
             "items": {
@@ -110,6 +116,36 @@
                     "type": "string"
                 },
                 "description": {
+                    "type": "string"
+                }
+            }
+        },
+        "formalFragment": {
+            "type": "object",
+            "description": "Reusable formal-language definitions that formal statements are written against. Opaque text in the declared language; consumers that do not know the language ignore it.",
+            "required": [
+                "id",
+                "language",
+                "source"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.-]+$",
+                    "description": "Unique within the document. Wider than a property id: fragment ids are typically source-language module names, so '.' is permitted."
+                },
+                "language": {
+                    "type": "string"
+                },
+                "imports": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_.-]+$"
+                    },
+                    "description": "Ids of other fragments of the same document. The edges must be acyclic; the schema cannot express that."
+                },
+                "source": {
                     "type": "string"
                 }
             }
@@ -191,6 +227,14 @@
                         },
                         "uri": {
                             "type": "string"
+                        },
+                        "uses": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z0-9_.-]+$"
+                            },
+                            "description": "Ids of formalFragments this statement is written against. Must resolve within the document; the schema cannot express that."
                         }
                     },
                     "anyOf": [
