@@ -21,7 +21,7 @@
     "ual": {
       "name": "Universal Annotation Language",
       "version": "0.4",
-      "uri": "https://github.com/input-output-hk/ual-spec",
+      "uri": "https://github.com/input-output-hk/UniversalAnnotationLanguage",
       "description": "Property specification language used by Blaster."
     }
   },
@@ -29,7 +29,7 @@
     "blaster": {
       "name": "Blaster",
       "version": "0.3.1",
-      "uri": "https://github.com/input-output-hk/blaster",
+      "uri": "https://github.com/input-output-hk/Lean-blaster",
       "description": "SMT-based formal verification tool for UPLC validators."
     }
   },
@@ -58,7 +58,7 @@
       "tags": ["safety", "liveness"],
       "evidence": [
         {
-          "method": "formal-proof",
+          "method": "smt-check",
           "verifier": "Input Output — Blaster team",
           "tool": "blaster",
           "outcome": "verified",
@@ -96,7 +96,7 @@
       "tags": ["safety", "authorization"],
       "evidence": [
         {
-          "method": "formal-proof",
+          "method": "smt-check",
           "verifier": "Input Output — Blaster team",
           "tool": "blaster",
           "outcome": "verified",

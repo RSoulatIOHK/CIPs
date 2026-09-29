@@ -299,6 +299,7 @@
                     "method": {
                         "enum": [
                             "formal-proof",
+                            "smt-check",
                             "property-test",
                             "unit-test"
                         ]

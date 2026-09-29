@@ -1,53 +1,89 @@
 {
   "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
   "preamble": {
-    "title": "Ticket contract — UAL assurance",
-    "description": "Generated from UAL annotations.",
+    "title": "Guessing game assurance",
+    "description": "Generated claims about the compiled guessing-game rule.",
     "version": "1.0.0",
     "authors": [
-      "Example Author <a@example.com>"
+      "Plutus contributors"
     ],
-    "created": "2026-08-24",
-    "license": "CC-BY-4.0"
+    "created": "2026-09-29",
+    "license": "Apache-2.0"
   },
   "blueprint": {
-    "uri": "plutus.json",
+    "uri": "ual-game-blueprint.json",
     "hash": {
       "alg": "sha256",
-      "digest": "6c1f0b7d3a94e582f0d6a1b2c3e4f50918273a4b5c6d7e8f90a1b2c3d4e5f607"
+      "digest": "402d3a6d66db19c1f5390753edf80d06610af3ca494abdee835e8cd8fba1fc07"
     }
   },
   "languages": {
     "ual": {
       "name": "Universal Annotation Language",
       "description": "Property specification language used by Blaster.",
-      "version": "0.4",
-      "uri": "https://github.com/input-output-hk/ual-spec"
+      "version": "0.5",
+      "uri": "https://github.com/input-output-hk/UniversalAnnotationLanguage"
     }
   },
   "formalFragments": [
     {
-      "id": "Ual.Fixture",
+      "id": "Main",
       "language": "ual",
-      "source": "def ticketOk (t : Ticket) : Prop := t.value > 0"
+      "source": "def hashMatches (actual guess : ByteString) : Prop :=\n  actual = PlutusCore.Crypto.Hash.sha2_256 guess"
     }
   ],
   "properties": [
     {
-      "id": "ticket_ok",
+      "id": "correct_guess",
       "scope": {
         "validators": [
-          "ticketSpend"
+          "gameValidator"
         ]
       },
       "statement": {
-        "text": "A ticket with a positive value is accepted.",
+        "text": "A guess whose hash matches the datum terminates successfully for every context.",
         "formal": {
           "language": "ual",
           "uses": [
-            "Ual.Fixture"
+            "Main"
           ],
-          "source": "∀ (t : Ticket), ticketOk t"
+          "source": "∀ (actual guess : ByteString) (ctx : Data), hashMatches actual guess →\n      isSuccessful (gameValidator (Data.B actual) (Data.B guess) ctx)"
+        }
+      }
+    },
+    {
+      "id": "wrong_guess",
+      "scope": {
+        "validators": [
+          "gameValidator"
+        ]
+      },
+      "statement": {
+        "text": "A guess whose hash differs from the datum fails script evaluation for every context.",
+        "formal": {
+          "language": "ual",
+          "uses": [
+            "Main"
+          ],
+          "source": "∀ (actual guess : ByteString) (ctx : Data), ¬ hashMatches actual guess →\n      isUnsuccessful (gameValidator (Data.B actual) (Data.B guess) ctx)"
+        }
+      }
+    },
+    {
+      "id": "malformed_datum",
+      "scope": {
+        "validators": [
+          "gameValidator"
+        ]
+      },
+      "statement": {
+        "text": "An integer datum fails to decode as the stored hash, for every redeemer and context.",
+        "formal": {
+          "language": "ual",
+          "uses": [
+            "Main"
+          ],
+          "source": "∀ (r ctx : Data), isUnsuccessful (gameValidator (Data.I 0) r ctx)"
         }
       }
     }
