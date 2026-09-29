@@ -152,10 +152,14 @@ The natural-language `text` is deliberately mandatory: every reader of an assura
 | language | A key of the document's `languages` registry                                       |
 | ?source  | The formal statement itself, inline                                                |
 | ?uri     | A URI from which the formal statement can be retrieved                             |
+| ?uses    | An array of fragment ids from `formalFragments` whose definitions this statement uses |
 
-At least one of `source` or `uri` MUST be present. The optional `uses` field is
-an array of ids from `formalFragments`; their transitive `imports` supply shared
-definitions. Every reference MUST resolve, including references in assumptions.
+At least one of `source` or `uri` MUST be present. `uses` belongs inside the
+`formal` object, as defined in the meta-schema at
+`$defs.statement.properties.formal.properties.uses`. It is optional: omitting it
+declares no fragment dependencies. When present, its fragment ids and their
+transitive `imports` supply shared definitions. Every reference MUST resolve,
+including references in assumptions.
 
 The formal statement MUST express the complete proposition, including its
 quantified premises. The `assumptions` field documents premises represented in
