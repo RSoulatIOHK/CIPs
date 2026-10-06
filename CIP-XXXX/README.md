@@ -139,16 +139,18 @@ the property's scope, once each, and select existing blueprint invocations. The
 parameter mode is either `universal` or `applied`. Universal mode requires the
 formal proposition to quantify over every currently unapplied parameter and state
 its domain premises; the label itself supplies no theorem. Applied mode contains
-an ordered `values` array and `appliedScriptHash`. Each value identifies a
+an ordered `values` array, a digest-bound `appliedScript` artifact and `appliedScriptHash`. Each value identifies a
 `/parameters/i` entry and a digest-bound `term` artifact. The initial profile uses
 closed UPLC terms serialized as Flat terms (not programs and not CBOR-wrapped).
 All parameters must be bound once and in order; partial specialization requires
 a separate blueprint with the remaining interface updated.
 
 For applied mode, the consumer decodes and validates each term under its declared
-encoding, applies the values to the exact template in order, serializes the
-resulting program using CIP-57's convention, and recomputes the applied script
-hash. A mismatch invalidates the deployment binding. Failure to establish a
+encoding and applies the values to the exact template in order. It decodes the
+`appliedScript` using CIP-57's single-CBOR program convention, requires structural
+equality with that ordered application (without optimization), and recomputes
+the language-tagged script hash from the supplied artifact bytes. Both Flat
+terms and CBOR programs must decode completely, with no trailing payload. A mismatch invalidates the deployment binding. Failure to establish a
 schema/domain premise prevents using a universal result for that deployment.
 Every artifact URI resolves relative to the document containing that URI.
 

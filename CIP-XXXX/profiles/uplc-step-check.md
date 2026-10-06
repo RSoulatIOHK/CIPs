@@ -3,8 +3,8 @@
 Proposed identifier:
 `https://cips.cardano.org/cips/cipXXXX/profiles/uplc-step-check/v1`.
 This is an editor-discussion draft. The UAL 0.6-draft implementation supports
-Data/native schemas, universal parameters and evaluation under CEK step bounds.
-Scott, applied bindings and ledger-cost checking are explicit
+Data/native schemas, universal or fully applied parameters and evaluation under CEK step bounds.
+Scott and ledger-cost checking are explicit
 unsupported cases. The illustrative CIP examples need a freshly captured checking
 environment before execution; the legacy UAL 0.5 format remains separate.
 
@@ -36,8 +36,10 @@ A checking run MUST perform the following steps before reporting a result:
 7. For applied parameters, verify each term artifact digest. Decode a single Flat
    UPLC term with no trailing bytes; terms must be closed values under the chosen
    encoding profile. Establish their encoding/schema premises. Apply every term
-   to the template in order, serialize the resulting program using the blueprint
-   convention and verify `appliedScriptHash`. Use that program for the property.
+   to the template in order. Decode the digest-bound `appliedScript` artifact using
+   the blueprint convention, require its AST to equal that exact application,
+   and verify `appliedScriptHash` against the artifact bytes. Use that program
+   for the property, with only runtime arguments remaining in its wrapper.
    Failure to establish a required binding is not a successful check. This draft
    does not define a partial-application deployment record.
 8. Elaborate only the property's declared fragment closure. Reject local axioms
@@ -132,3 +134,9 @@ checking boundary. Each cycle must cross a constructor field or container
 element. This structural guard does not imply that the schema is inhabited;
 properties with domain premises should include explicit satisfiability witnesses.
 No fixed-depth schema expansion or implicit malformed-value exclusion is allowed.
+
+Applied Data/native values support the structural schema forms, including guarded
+recursive Data. Additional refinements such as numeric bounds currently produce
+an explicit unsupported-constraint diagnostic; they are never silently assumed.
+The producer API `writeInterfaceBundleWithBindings` records property-specific
+bindings built by `compiledParameter` and `appliedParameters`.

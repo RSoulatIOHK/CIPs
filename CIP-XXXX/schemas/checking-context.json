@@ -168,12 +168,16 @@
                       "appliedScriptHash": {
                         "type": "string",
                         "pattern": "^[0-9a-f]{56}$"
+                      },
+                      "appliedScript": {
+                        "$ref": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance-v2.json#/$defs/artifact"
                       }
                     },
                     "required": [
                       "mode",
                       "values",
-                      "appliedScriptHash"
+                      "appliedScriptHash",
+                      "appliedScript"
                     ],
                     "additionalProperties": false
                   }

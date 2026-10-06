@@ -308,7 +308,7 @@ class DraftTests(unittest.TestCase):
 
     def test_applied_parameters_require_complete_order(self):
         target = self.context['targets'][0];target['validator'] = 'parameter-demo';target['purpose'] = 'mint'
-        target['parameters'] = {'mode':'applied','values':[{'parameter':'/parameters/1','term':copy.deepcopy(self.doc['checkingContexts']['game-run'])}],'appliedScriptHash':'00'*28}
+        target['parameters'] = {'mode':'applied','values':[{'parameter':'/parameters/1','term':copy.deepcopy(self.doc['checkingContexts']['game-run'])}],'appliedScriptHash':'00'*28,'appliedScript':copy.deepcopy(self.doc['checkingContexts']['game-run'])}
         with self.assertRaisesRegex(ValueError, 'binding order'): validate_context(self.context, self.params, ['parameter-demo'])
 
 
