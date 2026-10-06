@@ -1,5 +1,5 @@
 {
-  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance-v2.json",
   "preamble": {
     "title": "hello_world — property-test assurance",
     "authors": [

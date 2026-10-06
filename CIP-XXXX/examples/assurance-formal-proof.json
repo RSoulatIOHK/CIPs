@@ -1,5 +1,5 @@
 {
-  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance-v2.json",
   "preamble": {
     "title": "Escrow contract — formal verification assurance",
     "description": "Machine-checked safety properties of the escrow validator, verified with Blaster.",

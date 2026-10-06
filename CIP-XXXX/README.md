@@ -18,7 +18,7 @@ License: CC-BY-4.0
 
 A [CIP-0057](../CIP-0057) blueprint describes the binary interface of a Plutus validator — its datum, redeemer and parameter schemas — alongside its compiled code. It says nothing about the validator's expected behaviour or the guarantees it provides.
 
-This CIP defines the **assurance document**: a standalone, machine-readable JSON document through which any party, the contract's developers, an external auditor, or an independent community member, can publish claims about the validators described in a blueprint. Each claim states a property in natural language, optionally accompanied by a formal statement in a declared specification language, and is backed by zero or more evidence records stating who verified it, by what method (formal proof, property test, unit test, audit, manual review), with which tool, with what outcome, against which script hash, and where a reproducible verification artifact can be retrieved.
+This CIP defines the **assurance document**: a standalone, machine-readable JSON document through which any party, the contract's developers, an external auditor, or an independent community member, can publish claims about the validators described in a blueprint. Each claim states a property in natural language, optionally accompanied by a formal statement in a declared specification language, and is backed by zero or more evidence records stating who verified it, by what method (formal proof, SMT check, property test, unit test, audit, manual review), with which tool, with what outcome, against which script hash, and where a reproducible verification artifact can be retrieved.
 
 A third party can take an assurance document, confirm that it concerns the exact compiled code shipped in the blueprint, fetch the referenced artifacts, re-run the verification, and obtain the same verdicts. Trust rests on the reproducibility of the evidence and the soundness of the verification tools and not on the development team claims.
 
@@ -44,11 +44,11 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHOULD", "SHOULD NOT", "RECOMMEND
 
 This specification introduces the notion of an **assurance document**: a standalone JSON document that publishes claims about the on-chain validators described by a [CIP-0057](../CIP-0057) blueprint.
 
-An assurance document is *detached*: it is a separate document from the blueprint, and this CIP requires no change to `plutus.json`. Anyone — the contract's developers, an external auditor, an independent community member — can author and publish an assurance document about any blueprint. Multiple assurance documents about the same blueprint can coexist independently.
+An assurance document is *detached*: it is a separate document from the blueprint. The assurance envelope supports existing CIP-57 blueprints. Executable checks using the coordinated [compiled-interface extension](../CIP-0057/extensions/compiled-interface) additionally require its explicit interface metadata; those definitions belong to the blueprint specification. Anyone — the contract's developers, an external auditor, an independent community member — can author and publish an assurance document about any blueprint. Multiple assurance documents about the same blueprint can coexist independently.
 
 By convention, an assurance document authored by the contract developers is named `assurance.json` and located next to `plutus.json` at the root of the project's repository, to facilitate discoverability. Third-party documents can be published anywhere.
 
-The meta-schema for assurance documents (i.e. the schema used for validating assurance documents themselves) is given as an annex: [schemas/assurance.json](./schemas/assurance.json). An assurance document identifies the format version it complies with through its `$schema` field.
+The meta-schema for assurance documents (i.e. the schema used for validating assurance documents themselves) is given as an annex: [schemas/assurance-v2.json](./schemas/assurance-v2.json). An assurance document identifies the format version it complies with through its `$schema` field.
 
 A **producer** is any tool or person authoring assurance documents. A **consumer** is any tool interpreting them (e.g. a wallet, an explorer, a verification checker).
 
@@ -64,6 +64,9 @@ The document itself is a JSON object with the following fields. Here and in all 
 | ?languages  | A registry of specification languages used by formal statements    |
 | ?tools      | A registry of verification tools referenced by evidence records    |
 | ?formalFragments | Reusable formal definitions referenced by statements |
+| ?definitions | Shared value-schema definitions referenced by assurance functions |
+| ?functions | Compiled library functions and their ordered input/result wire schemas |
+| ?checkingContexts | Registry of digest-bound checking-context artifacts |
 | properties  | The list of claimed properties                                     |
 
 #### `$schema`
@@ -71,12 +74,12 @@ The document itself is a JSON object with the following fields. Here and in all 
 The value of this field MUST be the URI of the meta-schema this document complies with. For this version of the specification, it is:
 
 ```
-https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json
+https://cips.cardano.org/cips/cipXXXX/schemas/assurance-v2.json
 ```
 
 The meta-schema pins this value with a `const`: a document claiming compliance with this version of the format carries exactly this URI.
 
-Any breaking change to this specification MUST be published under a new URI. Additions of OPTIONAL fields MAY occur under the same URI. To make such additions possible, objects in an assurance document are deliberately open: consumers MUST ignore fields they do not recognize.
+Any breaking change to this specification MUST be published under a new URI. Additions of OPTIONAL fields MAY occur under the same URI. Most metadata objects are open to optional additions: consumers ignore unrecognized fields where the schema permits them. Scope, compiled-function entries and checking-context objects explicitly close their vocabularies so a checker cannot silently omit an unknown target or execution setting.
 
 #### preamble
 
@@ -99,6 +102,64 @@ A reference to the blueprint the claims are about.
 | ?hash  | A content digest of the blueprint document, as a [digest object](#digest-objects)        |
 
 The `hash`, when present, MUST be computed over the raw bytes of the blueprint document exactly as retrieved from `uri`. Including it is RECOMMENDED: it makes the binding tamper-evident. Consumers MUST verify it when present and MUST treat the assurance document as *not applicable* to a blueprint whose bytes do not match. When `hash` is absent, consumers SHOULD signal that the binding to the blueprint document is unverified.
+
+#### Checking contexts
+
+`checkingContexts` maps document-local ids (`^[A-Za-z0-9_-]+$`) to artifact
+references, each with `uri` and `hash`. A property's optional `checkingContext`
+selects one entry. Selecting an unknown id is invalid. Multiple properties may
+share an entry. Properties interpreted through the new compiled-interface checking
+profile MUST select a context. Informal claims and other profiles need not do so.
+
+The artifact's exact bytes must validate against
+[checking-context.json](./schemas/checking-context.json) and match the declared
+digest before use. Its fields are:
+
+| Field | Meaning |
+| --- | --- |
+| `$schema` | The checking-context schema identifier |
+| `profile` | A versioned checking-profile identifier; unknown profiles are not executable |
+| `environment` | Digest-bound artifact pinning the evaluator, libraries, solver, tool options and any local changes |
+| `execution` | Explicit semantics variant, resource accounting and acceptance interpretation |
+| `targets` | The exact scoped scripts (purpose and parameter bindings) and functions (content hashes and wire interfaces) |
+
+`execution.budget` is either `{ "kind": "cek-steps", "steps": n }` or
+`{ "kind": "ledger-units", "exCPU": n, "exMem": m, "costModel": <artifact> }`.
+The units cannot be mixed or converted by guessing. `semanticsVariant` is A–E.
+`acceptance: "evaluation"` means evaluation outcomes only. `acceptance:
+"ledger-script"` additionally requires ledger units, the cost-model artifact, and
+`protocolVersion: { "major": n, "minor": m }`. It means the selected script phase,
+not complete transaction validity. The profile checks language/protocol/semantics
+compatibility and the language-specific result requirement. A consumer without
+the declared evaluator or cost model reports not checked; it does not substitute
+its defaults. Exhaustion is distinct from evaluation error and successful return.
+
+Each target has `validator`, `purpose` and `parameters`. Targets must cover exactly
+the property's scope, once each, and select existing blueprint invocations. The
+parameter mode is either `universal` or `applied`. Universal mode requires the
+formal proposition to quantify over every currently unapplied parameter and state
+its domain premises; the label itself supplies no theorem. Applied mode contains
+an ordered `values` array and `appliedScriptHash`. Each value identifies a
+`/parameters/i` entry and a digest-bound `term` artifact. The initial profile uses
+closed UPLC terms serialized as Flat terms (not programs and not CBOR-wrapped).
+All parameters must be bound once and in order; partial specialization requires
+a separate blueprint with the remaining interface updated.
+
+For applied mode, the consumer decodes and validates each term under its declared
+encoding, applies the values to the exact template in order, serializes the
+resulting program using CIP-57's convention, and recomputes the applied script
+hash. A mismatch invalidates the deployment binding. Failure to establish a
+schema/domain premise prevents using a universal result for that deployment.
+Every artifact URI resolves relative to the document containing that URI.
+
+Machine-checked evidence for a property selecting a context MUST include
+`checkingContextHash`, the digest of the exact context bytes used for that run.
+A mismatch with the property's selected context makes that evidence stale, even
+if its script hash still matches. `scriptHash` continues to identify the blueprint's
+template; the applied hash is separate in the context. The reproducible artifact
+also retains the original statements and input documents, so changed claims cannot
+inherit evidence merely by retaining a property id. A missing or unverified
+configuration or environment binding is never reported as a successful check.
 
 #### digest objects
 
@@ -130,9 +191,10 @@ The essence of the assurance document: a non-empty list of claimed properties. E
 | ---          | ---                                                                                               |
 | id           | An identifier unique within the document, matching `^[A-Za-z0-9_-]+$`                             |
 | ?title       | A short and descriptive name for the property                                                     |
-| scope        | An object with a field `validators`: a non-empty list of [validator references](#referencing-validators) |
+| scope        | An object with nonempty, duplicate-free `validators` and/or `functions` arrays selecting [validators](#referencing-validators) or assurance function ids |
 | statement    | A [statement object](#statements): what is being claimed                                          |
 | ?assumptions | A list of statement objects: hypotheses under which the claim holds                               |
+| ?checkingContext | A key in `checkingContexts` selecting the interpretation and execution settings for this property |
 | ?tags        | A list of free-form classification strings (e.g. `safety`, `authorization`)                       |
 | ?evidence    | A list of [evidence records](#evidence-records); when absent or empty, the property is a stated, unverified claim |
 
@@ -167,7 +229,7 @@ that proposition or external deployment conditions; consumers MUST NOT silently
 turn it into trusted axioms. Checking the proposition does not establish external
 assumptions or the adequacy of its specification.
 
-A language specification MUST define how scoped validators denote the compiled
+A language specification MUST define how scoped scripts and functions denote the compiled
 programs and what execution/acceptance predicates mean. Naming a validator in
 `scope` alone does not connect a proposition to that code. Consumers SHOULD check
 this connection where their language permits it, and MUST distinguish such a
@@ -193,7 +255,7 @@ A validator reference is a string that resolves against the blueprint's `validat
 2. Otherwise, if exactly one validator has a `title` equal to the reference, it resolves to that validator.
 3. Otherwise (zero or several matches), the reference is unresolvable and consumers MUST treat it as an error.
 
-To make references robust, this CIP RECOMMENDS that blueprint producers include in each validator entry an OPTIONAL field `id`: a string unique within the blueprint, stable across renames of the validator's `title`. The CIP-0057 meta-schema permits additional fields on validator objects, so blueprints carrying `id` fields remain valid CIP-0057 blueprints, and tools unaware of this CIP ignore them.
+The coordinated [compiled-interface extension](../CIP-0057/extensions/compiled-interface#stable-identity) defines stable validator `id` values and requires them in its dialect. This CIP references those ids; it does not define a competing blueprint interface. Legacy CIP-57 documents may omit ids and use the title-based resolution rule below. Merely permitting an extra JSON field does not standardize its semantics.
 
 ```json
 {
@@ -220,8 +282,10 @@ Each evidence record documents one verification act performed against the proper
 | ?tool       | A key of the document's `tools` registry. REQUIRED for machine-checked methods.                 |
 | outcome     | One of `verified`, `falsified`, `partial`, `inconclusive`; see [outcomes](#outcomes)            |
 | date        | The date the verification was performed, as `YYYY-MM-DD`                                        |
-| ?scriptHash | The blake2b-224 hash digest (56 hex characters) of the script the verification ran against. REQUIRED for machine-checked methods. |
+| ?functionHashes | Content digests keyed by scoped function id; required for machine-checked methods with function targets. |
+| ?scriptHash | The blake2b-224 hash digest (56 hex characters) of the script the verification ran against. REQUIRED for machine-checked methods when the scope includes validators. |
 | ?artifact   | A reference to the reproducible verification artifact. REQUIRED for machine-checked methods.    |
+| ?checkingContextHash | Digest of the exact checking-context artifact used for this evidence; required for machine-checked evidence when the property selects a context |
 | ?notes      | Free-form remarks (e.g. number of test cases, proof effort)                                     |
 
 `scriptHash` is the on-chain script hash as defined by CIP-0057's validator `hash` field: a blake2b-224 digest of the serialised script, with language tag prefix. For parameterized validators, it is the hash of the *unapplied* validator template — the same value as the blueprint's own `hash` field for that validator.
@@ -251,7 +315,7 @@ The `method` field is an **open** enumeration. This CIP defines the meaning of s
 
 `smt-check` evidence MUST identify the translation, solver, and relevant model revisions and options in its artifact. It MUST NOT be presented as a reconstructed kernel proof. Producers claiming `formal-proof` SHOULD identify the proof artifact, proof checker, and trusted axioms.
 
-Producers MAY use other method strings. Consumers MUST accept unknown methods and treat them as opaque: display them, but attach no semantics. Method values are case-sensitive: `Formal-Proof` is an unknown method, not a formal proof. The four *machine-checked* methods carry stricter requirements (`tool`, `scriptHash` and `artifact` are REQUIRED) because their whole point is reproducibility.
+Producers MAY use other method strings. Consumers MUST accept unknown methods and treat them as opaque: display them, but attach no semantics. Method values are case-sensitive: `Formal-Proof` is an unknown method, not a formal proof. The four *machine-checked* methods carry stricter requirements (`tool` and `artifact` are REQUIRED, together with `scriptHash` for validator scopes and `functionHashes` for function scopes) because their whole point is reproducibility.
 
 #### Outcomes
 
@@ -278,7 +342,8 @@ A consumer of assurance documents:
 6. MUST treat unresolvable or ambiguous validator references as errors.
 7. MUST recompute a validator's script hash from the compiled bytes and the Plutus language tag before relying on the blueprint's declared `hash`. Inconsistent code/hash pairs are invalid.
 8. MUST distinguish a fresh checking result from historical evidence. Recorded outcomes MUST NOT determine the expected fresh verdict or suppress rechecking of partial/inconclusive claims. Unsupported or unavailable formal sources MUST be reported as not checked, never verified.
-9. MUST report an unverified binding when a digest algorithm cannot be checked; an executable verification profile MAY reject such a document outright. An unfetched remote artifact is unverified even if an independent fresh check succeeds.
+9. MUST, when a property selects a checking context, resolve and digest-check it and its environment, validate target coverage and parameter bindings, and implement its profile before a fresh check. Machine-checked evidence must bind to those context bytes; mismatched context digests are stale.
+10. MUST report an unverified binding when a digest algorithm cannot be checked; an executable verification profile MAY reject such a document outright. An unfetched remote artifact is unverified even if an independent fresh check succeeds.
 
 #### Producers and executable language profiles
 
@@ -288,14 +353,18 @@ ambiguous target identities, preserve formal dependencies, and avoid assigning
 claims to validators they do not constrain. Compilation without verification
 produces properties with no evidence.
 
-Language-specific checking profiles define argument encoding, execution semantics,
-resource bounds, dependency versions, and proof trust models. These are not
-universal CIP-57 fields. In particular, a CEK step limit is not a ledger execution
-budget, and exhausting it must not be described as script rejection. Template
-hashes do not identify parameter-applied deployments on their own.
+The blueprint interface defines argument representation, argument order and calling
+convention. Checking profiles consume that interface and define the formal model,
+resource bounds and proof trust model; they MUST NOT silently override the wire
+encoding or invent a different argument list. Checking settings are carried in
+[checking contexts](#checking-contexts), outside the blueprint. A CEK step limit
+is not a ledger execution budget, and exhausting it is not script rejection.
+Template hashes do not identify parameter-applied deployments on their own.
 
-[UAL 0.5](https://github.com/input-output-hk/UniversalAnnotationLanguage) defines a
-profile for generated Lean propositions and explicit applied-validator wrappers.
+The existing [UAL 0.5](https://github.com/input-output-hk/UniversalAnnotationLanguage)
+prototype uses experimental blueprint `arguments` and `budget` fields. Migration
+to this coordinated draft requires a new profile/version and changes to its
+producer and consumer; the old example is retained as a regression fixture.
 Its initial Blaster consumer performs SMT verification without reconstructed Lean
 kernel proofs; evidence MUST disclose that distinction. Language/tool versions
 alone do not pin the checking environment: reproducible artifacts must also pin
@@ -311,7 +380,7 @@ The following complete examples are also available as machine-readable files und
 
 ```json
 {
-  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance-v2.json",
   "preamble": {
     "title": "Escrow contract — formal verification assurance",
     "description": "Machine-checked safety properties of the escrow validator, verified with Blaster.",
@@ -341,7 +410,7 @@ The following complete examples are also available as machine-readable files und
     "blaster": {
       "name": "Blaster",
       "version": "0.3.1",
-      "uri": "https://github.com/input-output-hk/blaster",
+      "uri": "https://github.com/input-output-hk/Lean-blaster",
       "description": "SMT-based formal verification tool for UPLC validators."
     }
   },
@@ -435,7 +504,7 @@ The following complete examples are also available as machine-readable files und
 
 ```json
 {
-  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance.json",
+  "$schema": "https://cips.cardano.org/cips/cipXXXX/schemas/assurance-v2.json",
   "preamble": {
     "title": "hello_world — property-test assurance",
     "authors": [
@@ -495,7 +564,7 @@ An earlier draft of this proposal extended CIP-0057 blueprints in place, through
 
 1. **Third-party publishing.** The parties best placed to make assurance claims — auditors, independent verification teams — usually do not control the contract's repository. A detached document lets them publish claims about deployed code without any cooperation from the developers, and lets several independent assurance documents about the same blueprint coexist.
 2. **Blueprints are compiler output.** `plutus.json` is typically regenerated on every build by the smart-contract framework (Aiken, OpShin, plu-ts, ...). Hand-maintained assurance data embedded in a generated file would be overwritten on each compilation, or would require every framework to learn how to preserve and merge it.
-3. **No dialect machinery needed.** An assurance document is not a JSON Schema dialect extension; it is its own document type. Identifying the format by a versioned `$schema` URI is simpler than the `$vocabulary` opt-in mechanism, and CIP-0057 remains entirely untouched.
+3. **No dialect machinery needed.** An assurance document is not a JSON Schema dialect extension; it is its own document type. Identifying the format by a versioned `$schema` URI is simpler than the `$vocabulary` opt-in mechanism, and the blueprint interface is standardized independently in the coordinated extension.
 
 Developers who want the "blueprint carries its claims" experience simply ship an `assurance.json` next to their `plutus.json`.
 
@@ -519,16 +588,28 @@ New verification methods keep appearing (symbolic execution, model checking, fuz
 
 ### Validators only
 
-Assurance documents annotate validators — the unit of description in CIP-0057 blueprints. Finer-grained specifications (e.g. per-function contracts within a validator) and richer blueprint descriptions are deliberately out of scope for this proposal, and are left to future work.
+Assurance documents annotate validators — the unit of description in CIP-0057 blueprints. Finer-grained specifications (e.g. per-function contracts within a validator) remain out of scope. Richer interface descriptions are handled by the coordinated blueprint extension, not duplicated in assurance documents.
 
 ### Backward compatibility
 
-This CIP requires no change to CIP-0057. The RECOMMENDED validator `id` field is already legal under the CIP-0057 meta-schema (validator objects do not forbid additional fields), and blueprints without `id` fields remain fully usable through `title`-based references. Tools unaware of this CIP are unaffected: assurance documents are separate files they never read.
+The assurance envelope can reference existing CIP-57 documents, including legacy
+title-based references. Executable checks using the compiled-interface profile
+require that extension's dialect and stable ids. Older consumers may display
+unsupported interfaces but MUST NOT claim to have checked them.
+
+This draft uses `assurance-v2.json` because an external checking context affects a
+proposition's interpretation: silently ignoring it would be unsafe. The earlier
+unpublished `assurance.json` schema is preserved for the UAL 0.5 regression example.
+These are draft version identifiers for editor review, not two published CIPs.
+A consumer must recognize the selected schema and checking profile before executing
+a claim. Existing evidence is not automatically upgraded to a new profile.
 
 ## Path to Active
 
 ### Acceptance Criteria
 
+- [ ] Agree with CIP editors on the placement of the coordinated blueprint extension and draft identifiers.
+- [ ] Demonstrate producer/checker migration, including Data/native/Scott representations and applied-script binding.
 - [ ] The meta-schema is published and has remained stable through community review.
 - [ ] At least one producer toolchain emits assurance documents (Blaster, planned).
 - [ ] At least one consumer tool validates assurance documents, including binding checks (blueprint hash, validator resolution, script hash comparison) and artifact digest verification.
@@ -544,7 +625,7 @@ This CIP requires no change to CIP-0057. The RECOMMENDED validator `id` field is
 
 This CIP is licensed under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode).
 
-### Executable UAL example
+### Legacy executable UAL example
 
 [The generated game assurance](./examples/assurance-ual-generated.json) binds to
 [its compiled blueprint](./examples/ual-game-blueprint.json). It contains UAL 0.5
@@ -555,3 +636,55 @@ The producer emits no evidence. Fresh verification and a separate concrete hash
 vector test are provided by PlutusCoreBlaster's `Tests/BlueprintVerify/run_generated.py`.
 Only after those checks succeed does the runner write a separate assurance document
 with `smt-check` evidence bound to the script hash and a reproducible run artifact.
+
+### Draft coordinated example
+
+[The interface-aware assurance](./examples/interface-game-assurance.json) references
+[the same compiled game with explicit interface metadata](./examples/interface-game-blueprint.json),
+[a checking context](./examples/game-checking.json), and
+[an illustrative environment manifest](./examples/game-environment.json). The
+compiled bytes are unchanged, but these documents are migration targets, not
+outputs supported by the current UAL 0.5 checker. They carry no verification evidence.
+The environment manifest explicitly lists prerequisites before execution.
+
+See the [editor discussion notes](./INTERFACE-COORDINATION.md) for the proposal split
+and the [draft checking profile](./profiles/uplc-step-check.md) for execution rules.
+
+
+### Compiled library functions (assurance-v2 draft)
+
+The optional `functions` object maps stable function ids to compiled UPLC and
+its interface. Each entry requires `compiledCode` (lowercase hex),
+`serialization: "cbor-flat"` (one CBOR bytestring containing Flat UPLC),
+`hash` (SHA-256 over the decoded compiledCode bytes), `plutusVersion`, ordered
+`arguments` wire schemas, and a `result` wire schema. Function schemas use the
+CIP-57 compiled-interface value vocabulary. References resolve against the
+assurance document's optional `definitions` registry, preserving recursive graphs.
+The function id is its registry key. There is no ledger invocation convention.
+
+Properties select them with `scope.functions`; `scope.validators` continues to
+select ledger scripts from the referenced blueprint. Either or both arrays may
+be present; present arrays must be nonempty and duplicate-free. Ids are unique
+across functions and validators. Checking contexts cover the scope exactly;
+a function target contains `function`, `functionHash`, and `functionInterface`.
+The latter copies `serialization`, `plutusVersion`, ordered `arguments`, and
+`result` from the registry, plus the assurance `definitions` registry (omission
+means empty). The profile requires exact equality, binding their
+interpretation into `checkingContextHash`. The profile checks
+that digest against both the registry and actual bytes before execution.
+
+Machine evidence for a function scope includes `functionHashes`, keyed by every
+scoped function id, as well as its artifact and checkingContextHash. Script
+scopes continue to use scriptHash. Neither historical evidence nor a matching
+content digest alone proves a property. A fresh check evaluates the exact formal
+statement under the declared interface and checking context.
+
+Helper code and its specifications belong in this assurance document. They do
+not become CIP-57 validator entries. A proof about separately compiled helper
+bytes is not automatically a proof about optimized validator code that used the
+same source function; a validator property or equivalence argument is needed.
+
+The [compiled helper example](./examples/compiled-function-assurance.json) and
+[its checking context](./examples/function-checking.json) illustrate the function
+registry using actual compiled bytes. Their environment is illustrative and the
+example carries no evidence; capture a real environment before execution.
