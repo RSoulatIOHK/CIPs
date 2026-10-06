@@ -1,5 +1,5 @@
 ---
-CIP: XXXX
+CIP: pending
 Title: Plutus Blueprint Assurance Documents
 Category: Tools
 Status: Proposed
@@ -9,7 +9,7 @@ Authors:
     - Romain Soulat <romain.soulat@iohk.io>
 Implementors: []
 Discussions:
-    - https://github.com/cardano-foundation/CIPs/pull/?
+    - "Original PR: https://github.com/cardano-foundation/CIPs/pull/1285"
 Created: 2026-06-16
 License: CC-BY-4.0
 ---
@@ -22,7 +22,7 @@ This CIP defines the **assurance document**: a standalone, machine-readable JSON
 
 A third party can take an assurance document, confirm that it concerns the exact compiled code shipped in the blueprint, fetch the referenced artifacts, re-run the verification, and obtain the same verdicts. Trust rests on the reproducibility of the evidence and the soundness of the verification tools and not on the development team claims.
 
-## Motivation: why is this CIP necessary?
+## Motivation: Why is this CIP necessary?
 
 [CIP-0057](../CIP-0057) makes a validator's interface legible. However, it does not expose anything about the validator's behaviour. Today, "this validator is safe" is established by an off-chain, largely manual process whose end product is typically a PDF report from a trusted auditor. There is no standard, machine-readable way for developers or auditors to state which properties a validator satisfies, how those properties were verified, and how anyone can check the verification themselves.
 
@@ -373,7 +373,7 @@ alone do not pin the checking environment: reproducible artifacts must also pin
 libraries, solver, settings, and semantics. Third-party formal source is executable
 input and must be checked in an isolated environment.
 
-## Examples
+### Examples
 
 The following complete examples are also available as machine-readable files under [examples](./examples).
 
@@ -558,7 +558,7 @@ The following complete examples are also available as machine-readable files und
 ```
 </details>
 
-## Rationale: how does this CIP achieve its goals?
+## Rationale: How does this CIP achieve its goals?
 
 ### Why a detached document rather than a blueprint extension
 
